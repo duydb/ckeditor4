@@ -726,40 +726,21 @@ CKEDITOR.dom.range = function( root ) {
 		 * @returns {Boolean} return.collapsed
 		 */
 		createBookmark: function( serializable ) {
-			var startNode, endNode;
-			var baseId;
-			var clone;
-			var collapsed = this.collapsed;
-
-			startNode = this.document.createElement( 'span' );
-			startNode.data( 'cke-bookmark', 1 );
-			startNode.setStyle( 'display', 'none' );
-
-			// For IE, it must have something inside, otherwise it may be
-			// removed during DOM operations.
-			startNode.setHtml( '&nbsp;' );
+			var collapsed = this.collapsed,
+				startNode,
+				endNode,
+				baseId;
 
 			if ( serializable ) {
 				baseId = 'cke_bm_' + CKEDITOR.tools.getNextNumber();
-				startNode.setAttribute( 'id', baseId + ( collapsed ? 'C' : 'S' ) );
 			}
 
 			// If collapsed, the endNode will not be created.
 			if ( !collapsed ) {
-				endNode = startNode.clone();
-				endNode.setHtml( '&nbsp;' );
-
-				if ( serializable )
-					endNode.setAttribute( 'id', baseId + 'E' );
-
-				clone = this.clone();
-				clone.collapse();
-				clone.insertNode( endNode );
+				endNode = createBookmarkNode( this, true, serializable );
 			}
 
-			clone = this.clone();
-			clone.collapse( true );
-			clone.insertNode( startNode );
+			startNode = createBookmarkNode( this, false, serializable );
 
 			// Update the range position.
 			if ( endNode ) {
@@ -770,11 +751,62 @@ CKEDITOR.dom.range = function( root ) {
 			}
 
 			return {
-				startNode: serializable ? baseId + ( collapsed ? 'C' : 'S' ) : startNode,
-				endNode: serializable ? baseId + 'E' : endNode,
+				startNode: returnIdOrNode( startNode, serializable ),
+				endNode: returnIdOrNode( endNode, serializable ),
 				serializable: serializable,
 				collapsed: collapsed
 			};
+
+			function createBookmarkNode( range, isEnd, serializable ) {
+				var container = isEnd ? range.endContainer : range.startContainer,
+					temporaryPosition = isEnd ? CKEDITOR.POSITION_AFTER_END : CKEDITOR.POSITION_BEFORE_START,
+					node = range.document.createElement( 'span' ),
+					idSuffix = isEnd ? 'E' : ( range.collapsed ? 'C' : 'S' ),
+					clone,
+					temporary;
+
+				node.data( 'cke-bookmark', 1 );
+				node.setStyle( 'display', 'none' );
+
+				// For IE, it must have something inside, otherwise it may be
+				// removed during DOM operations.
+				node.setHtml( '&nbsp;' );
+
+				if ( serializable ) {
+					node.setAttribute( 'id', baseId + idSuffix );
+				}
+
+				clone = range.clone();
+
+				if ( isTemporary( container ) ) {
+					temporary = getTemporary( container );
+
+					clone.moveToPosition( temporary, temporaryPosition );
+				}
+
+				clone.collapse( !isEnd );
+				clone.insertNode( node );
+
+				return node;
+			}
+
+			function returnIdOrNode( node, serializable ) {
+				if ( serializable ) {
+					return node.getAttribute( 'id' );
+				}
+
+				return node;
+			}
+
+			function isTemporary( node ) {
+				return !!getTemporary( node );
+			}
+
+			function getTemporary( node ) {
+				return node.getAscendant( function( node ) {
+					return node.data && node.data( 'cke-temp' );
+				}, true );
+			}
 		},
 
 		/**
